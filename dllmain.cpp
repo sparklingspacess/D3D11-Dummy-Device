@@ -9,50 +9,6 @@
 
 typedef HRESULT(__stdcall* Present)(IDXGISwapChain*, UINT, UINT);
 Present opres = nullptr;
-ID3D11Device* gdevice = nullptr;
-ID3D11DeviceContext* gcon = nullptr;
-ID3D11RenderTargetView* grtv = nullptr;
-HWND ghwnd = nullptr;
-WNDPROC owndproc = nullptr;
-bool init = false;
-bool rerouteinput = false;
-
-
-LRESULT CALLBACK HkWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-	//You can use this for input functionality with things like ImGui.
-	if (rerouteinput)
-	{
-		switch (uMsg)
-		{
-		case WM_LBUTTONDOWN:
-		case WM_LBUTTONUP:
-		case WM_RBUTTONDOWN:
-		case WM_RBUTTONUP:
-		case WM_MOUSEMOVE:
-		case WM_MOUSEWHEEL:
-		case WM_KEYDOWN:
-		case WM_KEYUP:
-		case WM_CHAR:
-			return true;
-		}
-	}
-	return CallWindowProc(owndproc, hwnd, uMsg, wParam, lParam);
-}
-
-void CreateRenderTarget(IDXGISwapChain* swapchain)
-{
-	ID3D11Texture2D* back = nullptr;
-	swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&back);
-	gdevice->CreateRenderTargetView(back, NULL, &grtv);
-	back->Release();
-}
-
-void InitInput(HWND hwnd)
-{
-	ghwnd = hwnd;
-	owndproc = (WNDPROC)SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)HkWndProc);
-}
 
 void* GetPresentAddress()
 {
@@ -80,28 +36,11 @@ void* GetPresentAddress()
 
 HRESULT __stdcall HkPresent(IDXGISwapChain* swapchain, UINT sync, UINT flags)
 {
-	if (!init)
+	ID3D11Texture2D* backbuffer = nullptr;
+	swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backbuffer);
+	if (backbuffer)
 	{
-		if (SUCCEEDED(swapchain->GetDevice(__uuidof(ID3D11Device), (void**)&gdevice)))
-		{
-			gdevice->GetImmediateContext(&gcon);
-			DXGI_SWAP_CHAIN_DESC sd;
-			swapchain->GetDesc(&sd);
-			CreateRenderTarget(swapchain);
-			InitInput(sd.OutputWindow);
-			init = true;
-		}
-	}
-	if (init)
-	{
-		//Some commented out stuff to get the COM interface for the back buffer texture, not really that good but useful.
-		//ID3D11Texture2D* backbuffer = nullptr;
-		//swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backbuffer);
-		gcon->OMSetRenderTargets(1, &grtv, NULL);
-		//if (backbuffer)
-		//{
-		//	backbuffer->Release();
-		//}
+		backbuffer->Release();
 	}
 	return opres(swapchain, sync, flags);
 }
